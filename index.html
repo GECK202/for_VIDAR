@@ -1,19 +1,10 @@
-<!DOCTYPE html>
-<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-<html>
-	<head>
-		<title>3D dicom</title>
-		<style>
-			body { margin: 0; }
-			canvas { display: block; }
-		</style>
-	</head>
+
 <body>
-	<div class="slidecontainer" id="slidecontainer">
-		dark mask<input type="range" min="0" max="255" value="0" class="slider" id="LowRange">
+	<div class="slidecontainer">
+		dark mask<input type="range" min="0" max="255" value="25.5" class="slider" id="LowRange">
 		light mask<input type="range" min="0" max="255" value="255" class="slider" id="UpRange">
-		min slice<input type="range" min="0" max="255" value="0" class="slider" id="minSlice">
-		max slice
+		min slice<input type="range" min="0" max="459" value="0" class="slider" id="minSlice">
+		max slice<input type="range" min="0" max="459" value="459" class="slider" id="maxSlice">
 	</div>
 	<div id="container"></div>
 	<script src="js/three.js"></script>
@@ -60,7 +51,7 @@
 		const spread = 0.1;
 		let textures = [];
 		let materials = [];
-		let low_mask = 0.0;
+		let low_mask = 0.1;
 		let up_mask = 1.0;
 		let min_slice = 0;
 		let max_slice = 459;
@@ -69,8 +60,8 @@
 
 		const slices = 459;
 
-		let rotx = 0.0;
-		let roty = 0.0;
+		//let rotx = 0.0;
+		//let roty = 0.0;
 		//loaders();
 		init();
 		animate();
@@ -144,7 +135,7 @@
 			scene = new THREE.Scene();
 			scene.background = new THREE.Color(0xAAAAAA);
 			
-			createSlider();
+			//createSlider();
 			createCamera();
 			createControls();
 			createMeshes();
@@ -160,14 +151,6 @@
 			onWindowResize();
 			window.addEventListener( 'resize', onWindowResize, false );
 			
-			const sliderLow = document.querySelector( '#LowRange' );
-			sliderLow.oninput = function() {
-				low_mask = this.value / 255;
-			};
-			const sliderUp = document.querySelector( '#UpRange' );
-			sliderUp.oninput = function() {
-				up_mask = this.value / 255;
-			};
 			const sliderMinSlice = document.querySelector( '#MinSlice' );
 			sliderMinSlice.oninput = function() {
 				min_slice = this.value;
@@ -175,6 +158,15 @@
 			const sliderMaxSlice = document.querySelector( '#MaxSlice' );
 			sliderMaxSlice.oninput = function() {
 				max_slice = this.value;
+			};
+			
+			const sliderLow = document.querySelector( '#LowRange' );
+			sliderLow.oninput = function() {
+				low_mask = this.value / 255;
+			};
+			const sliderUp = document.querySelector( '#UpRange' );
+			sliderUp.oninput = function() {
+				up_mask = this.value / 255;
 			};
 		}
 
@@ -206,12 +198,9 @@
 				materials[i].uniforms.u_max_slice.value = max_slice;
 				//materials[i].uniforms.u_cur_slice.value = i;
 			}
-			//for(i = 0; i < slices; i++)
-			//{
 			//i = 100;
 			//console.log("min cur max "+materials[i].uniforms.u_min_slice.value+";"+materials[i].uniforms.u_cur_slice.value+";"+ materials[i].uniforms.u_max_slice.value);
 			renderer.render( scene, camera );
 		}
 	</script>
 </body>
-</html>
