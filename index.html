@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<html>
+	<head>
+		<title>3D dicom</title>
+		<style>
+			body { margin: 0; }
+			canvas { display: block; }
+		</style>
+	</head>
+<body>
+	<div class="slidecontainer" id="slidecontainer">
+		dark mask<input type="range" min="0" max="255" value="0" class="slider" id="LowRange">
+		light mask<input type="range" min="0" max="255" value="255" class="slider" id="UpRange">
+		min slice<input type="range" min="0" max="255" value="0" class="slider" id="minSlice">
+		max slice
+	</div>
+	<div id="container"></div>
+	<script src="js/three.js"></script>
+	<script src="js/OrbitControls.js"></script>
+	<script id="vertexShader" type="x-shader/x-vertex">
+		uniform uint u_min_slice;
+		uniform uint u_max_slice;
+		uniform uint u_cur_slice;
+		varying vec2 v_uv;
+		void main() {
+			v_uv = uv;
+			gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+			if (u_cur_slice > u_max_slice)
+				gl_Position = vec4( 3000,3000,3000, 1.0 );
+			if (u_cur_slice < u_min_slice)
+				gl_Position = vec4( -3000,-3000,-3000, 1.0 );
+		}
+	</script>
+	<script id="fragmentShader" type="x-shader/x-fragment">
+		#include <common>
+		uniform sampler2D u_texture;
+		uniform float u_low_mask;
+		uniform float u_up_mask;
+		uniform float u_time;
+		varying vec2 v_uv;
+		void main() {
+			vec4 color = texture2D(u_texture, v_uv);
+			
+			if(color.r < u_low_mask || color.r > u_up_mask)// || u_cur_slice > u_min_slice || u_cur_slice < u_min_slice)
+        		discard;
+			float col = smoothstep(u_low_mask, u_up_mask, color.r);
+			//vec4 col = vec4(u_low_mask, u_up_mask, 0.5 * sin(u_time), 1.0);
+			//gl_FragColor = col;
+			gl_FragColor = vec4(col, col, col, 1.0);
+				
+			//gl_FragColor = vec4(color.rgb, 1.0);
+		}
+	</script>
+	<script>
+		let camera, scene, renderer;
+		let controls;
+		//let uniforms;
+		const objects = [];
+		const spread = 0.1;
+		let textures = [];
+		let materials = [];
+		let low_mask = 0.0;
+		let up_mask = 1.0;
+		let min_slice = 0;
+		let max_slice = 459;
+		let i_scale = 128;
+		const reconstruction = new THREE.Object3D();
+
+		const slices = 459;
+
+		let rotx = 0.0;
+		let roty = 0.0;
+		//loaders();
+		init();
+		animate();
+		
+		function createSlider() {
+			const sliderContainer = document.querySelector( '#slidecontainer' );
+			const elem = document.createElement('input');
+			elem.id = "maxSlice";
+			elem.type = "range";
+			elem.min = "0";
+			elem.max = slices.toString();
+			elem.value = slices.toString();
+			elem.class = "slider";
+			sliderContainer.appendChild(elem);
+		}
+
+
+		function createControls() {
+			controls = new THREE.OrbitControls( camera, container );
+		}
+		
+		function createCamera() {
+			camera = new THREE.PerspectiveCamera( 40, window.innerWidth / window.innerHeight, 0.1, 1000 );
+			camera.position.z = i_scale;
+		}
+		
+		function createMeshes() {
+			const loader = new THREE.TextureLoader();
+			for (i = 0; i < slices; i++)
+			{
+				const texture = loader.load('./png_image/'+i+'.png');
+				texture.magFilter = THREE.NearestFilter;
+				texture.minFilter = THREE.NearestFilter;
+				//textures.push(texture);
+	
+				const uniforms = {
+				u_time: { type: "f", value: 1.0 },
+				u_resolution: { type: "v2", value: new THREE.Vector2() },
+				u_mouse: { type: "v2", value: new THREE.Vector2() },
+				u_texture: {type: "t", value: texture},
+				u_low_mask: {type: "f", value: 0.0 },
+				u_up_mask: {type: "f", value: 1.0 },
+				u_min_slice: {type: "uint", value: 0 },
+				u_max_slice: {type: "uint", value: slices },
+				u_cur_slice: {type: "uint", value: i},
+				};
+				let material = new THREE.ShaderMaterial( {
+					uniforms: uniforms,
+					vertexShader: document.querySelector( '#vertexShader' ).textContent,
+					fragmentShader: document.querySelector( '#fragmentShader' ).textContent,
+					side: THREE.DoubleSide
+				} );
+				const geometry = new THREE.PlaneBufferGeometry( 50, 50 );
+				const mesh = new THREE.Mesh( geometry, material );
+				reconstruction.add( mesh );
+				zpos =  ((i-slices/2) * spread);
+				mesh.position.z = zpos;
+				objects.push(mesh);
+				materials.push(material);
+			}
+		}
+
+		function createRenderer() {
+			renderer = new THREE.WebGLRenderer();
+			renderer.setSize( window.innerWidth, window.innerHeight );
+			container.appendChild( renderer.domElement );
+		}
+
+		function init() {
+			const container = document.querySelector( '#container' );
+			scene = new THREE.Scene();
+			scene.background = new THREE.Color(0xAAAAAA);
+			
+			createSlider();
+			createCamera();
+			createControls();
+			createMeshes();
+			createRenderer();
+
+			renderer.setAnimationLoop( () => {
+				update();
+				render();
+			} );
+			
+		
+			scene.add(reconstruction);
+			onWindowResize();
+			window.addEventListener( 'resize', onWindowResize, false );
+			
+			const sliderLow = document.querySelector( '#LowRange' );
+			sliderLow.oninput = function() {
+				low_mask = this.value / 255;
+			};
+			const sliderUp = document.querySelector( '#UpRange' );
+			sliderUp.oninput = function() {
+				up_mask = this.value / 255;
+			};
+			const sliderMinSlice = document.querySelector( '#MinSlice' );
+			sliderMinSlice.oninput = function() {
+				min_slice = this.value;
+			};
+			const sliderMaxSlice = document.querySelector( '#MaxSlice' );
+			sliderMaxSlice.oninput = function() {
+				max_slice = this.value;
+			};
+		}
+
+		function onWindowResize( event ) {
+			renderer.setSize( window.innerWidth, window.innerHeight );
+			for(i = 0; i < slices; i++)
+			{
+				materials[i].uniforms.u_resolution.value.x = renderer.domElement.width;
+				materials[i].uniforms.u_resolution.value.y = renderer.domElement.height;
+			}
+		}
+
+		function update() {
+			// Don't delete this function!
+		}
+
+		function animate() {
+			requestAnimationFrame( animate );
+			render();
+		}
+
+		function render() {
+			for(i = 0; i < slices; i++)
+			{
+				materials[i].uniforms.u_time.value += 0.05;
+				materials[i].uniforms.u_low_mask.value = low_mask;
+				materials[i].uniforms.u_up_mask.value = up_mask;
+				materials[i].uniforms.u_min_slice.value = min_slice;
+				materials[i].uniforms.u_max_slice.value = max_slice;
+				//materials[i].uniforms.u_cur_slice.value = i;
+			}
+			//for(i = 0; i < slices; i++)
+			//{
+			//i = 100;
+			//console.log("min cur max "+materials[i].uniforms.u_min_slice.value+";"+materials[i].uniforms.u_cur_slice.value+";"+ materials[i].uniforms.u_max_slice.value);
+			renderer.render( scene, camera );
+		}
+	</script>
+</body>
+</html>
